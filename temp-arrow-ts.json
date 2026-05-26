@@ -1,0 +1,32 @@
+﻿{
+  "version": "1.2.3",
+  "name": "jarvis-2-0",
+  "problems": [
+    "invalid: @apache-arrow/ts@21.1.0 C:\\Users\\Vikas\\OneDrive\\Desktop\\New folder\\IRIS-AI-main\\IRIS-AI-main\\node_modules\\@apache-arrow\\ts"
+  ],
+  "dependencies": {
+    "@apache-arrow/ts": {
+      "version": "21.1.0",
+      "resolved": "https://registry.npmjs.org/@apache-arrow/ts/-/ts-21.1.0.tgz",
+      "overridden": false
+    },
+    "vectordb": {
+      "version": "0.21.2",
+      "overridden": false,
+      "dependencies": {
+        "@apache-arrow/ts": {
+          "version": "21.1.0",
+          "invalid": "\"^14.0.2\" from node_modules/vectordb",
+          "problems": [
+            "invalid: @apache-arrow/ts@21.1.0 C:\\Users\\Vikas\\OneDrive\\Desktop\\New folder\\IRIS-AI-main\\IRIS-AI-main\\node_modules\\@apache-arrow\\ts"
+          ]
+        }
+      }
+    }
+  },
+  "error": {
+    "code": "ELSPROBLEMS",
+    "summary": "invalid: @apache-arrow/ts@21.1.0 C:\\Users\\Vikas\\OneDrive\\Desktop\\New folder\\IRIS-AI-main\\IRIS-AI-main\\node_modules\\@apache-arrow\\ts",
+    "detail": ""
+  }
+}
