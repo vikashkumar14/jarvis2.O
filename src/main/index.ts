@@ -71,6 +71,12 @@ let isOverlayMode = false
 
 const secureConfigPath = join(app.getPath('userData'), 'iris_secure_vault.json')
 
+function sendUpdaterEvent(status: string, payload: any = {}) {
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.send('updater-event', { status, ...payload })
+  }
+}
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -156,20 +162,36 @@ function toggleOverlayMode() {
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.vikash.jarvis')
 
-  const isAutoUpdateEnabled = !is.dev && app.isPackaged && process.env.ENABLE_AUTO_UPDATE === 'true'
+  const isAutoUpdateEnabled = !is.dev && app.isPackaged
 
   if (isAutoUpdateEnabled) {
-    autoUpdater.autoDownload = true
-    autoUpdater.autoInstallOnAppQuit = true
-    autoUpdater.checkForUpdatesAndNotify()
+    autoUpdater.autoDownload = false
+    autoUpdater.autoInstallOnAppQuit = false
+    autoUpdater.checkForUpdates()
   }
 
+  autoUpdater.on('checking-for-update', () => {
+    sendUpdaterEvent('checking')
+  })
+
   autoUpdater.on('update-available', (info) => {
+    sendUpdaterEvent('available', {
+      version: info.version,
+      releaseNotes: info.releaseNotes || ''
+    })
     dialog.showMessageBox({
       type: 'info',
       title: 'Update Found',
       message: `Neural Core Update Found: v${info.version}. Downloading in background...`
     })
+  })
+
+  autoUpdater.on('update-not-available', () => {
+    sendUpdaterEvent('not-available')
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    sendUpdaterEvent('downloading', { percent: progress.percent || 0 })
   })
 
   autoUpdater.on('error', (err) => {
@@ -182,6 +204,7 @@ app.whenReady().then(() => {
   })
 
   autoUpdater.on('update-downloaded', () => {
+    sendUpdaterEvent('downloaded')
     dialog
       .showMessageBox({
         type: 'info',
@@ -195,6 +218,45 @@ app.whenReady().then(() => {
           autoUpdater.quitAndInstall(false, true)
         })
       })
+  })
+
+  ipcMain.handle('get-app-version', () => {
+    return app.getVersion()
+  })
+
+  ipcMain.handle('check-for-updates', async () => {
+    if (!isAutoUpdateEnabled) {
+      sendUpdaterEvent('error', { error: 'Auto-update only works in packaged builds.' })
+      return { success: false }
+    }
+
+    try {
+      await autoUpdater.checkForUpdates()
+      return { success: true }
+    } catch (error: any) {
+      sendUpdaterEvent('error', { error: (error && error.message) || 'Update check failed.' })
+      return { success: false }
+    }
+  })
+
+  ipcMain.handle('download-update', async () => {
+    try {
+      await autoUpdater.downloadUpdate()
+      return { success: true }
+    } catch (error: any) {
+      sendUpdaterEvent('error', { error: (error && error.message) || 'Download failed.' })
+      return { success: false }
+    }
+  })
+
+  ipcMain.handle('install-update', async () => {
+    try {
+      autoUpdater.quitAndInstall(false, true)
+      return { success: true }
+    } catch (error: any) {
+      sendUpdaterEvent('error', { error: (error && error.message) || 'Install failed.' })
+      return { success: false }
+    }
   })
 
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
