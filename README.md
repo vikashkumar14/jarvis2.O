@@ -5,16 +5,16 @@
 ## The Autonomous Neural OS Agent
 
 <div style="display: flex; justify-center; gap: 10px; margin-bottom: 20px;">
-  <a href="https://github.com/vikash/IRIS-AI/stargazers">
+  <a href="https://github.com/vikashkumar14/IRIS-AI.gitstargazers">
     <img src="https://img.shields.io/github/stars/vikash/IRIS-AI?style=for-the-badge&color=10b981&logo=github&logoColor=white" alt="GitHub stars">
   </a>
-  <a href="https://github.com/vikash/IRIS-AI/network/members">
+  <a href="https://github.com/vikashkumar14/IRIS-AI.gitnetwork/members">
     <img src="https://img.shields.io/github/forks/vikash/IRIS-AI?style=for-the-badge&color=10b981&logo=git&logoColor=white" alt="GitHub forks">
   </a>
-  <a href="https://github.com/vikash/IRIS-AI/graphs/contributors">
+  <a href="https://github.com/vikashkumar14/IRIS-AI.gitgraphs/contributors">
     <img src="https://img.shields.io/github/contributors/vikash/IRIS-AI?style=for-the-badge&color=10b981&logo=users&logoColor=white" alt="Contributors">
   </a>
-  <a href="https://github.com/vikash/IRIS-AI/releases">
+  <a href="https://github.com/vikashkumar14/IRIS-AI.gitreleases">
     <img src="https://img.shields.io/github/downloads/vikash/IRIS-AI/total?style=for-the-badge&color=10b981&logo=download&logoColor=white" alt="Downloads">
   </a>
 </div>
