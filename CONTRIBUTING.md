@@ -8,14 +8,14 @@ Please read this guide to ensure your Pull Requests (PRs) merge smoothly and kee
 
 ## 🔗 Quick Links
 
-- **GitHub:** https://github.com/vikash/IRIS-AI
-- **Instagram:** [@irisx.ai](https://www.instagram.com/irisx.ai/)
+- **GitHub:** https://github.com/vikashkumar14/IRIS-AI
+- **Instagram:** [@irisx.ai](https://www.instagram.com/codeninjavik/)
 
 ## 👑 Maintainers
 
 - **vikash** - Creator & Lead Architect
-  - GitHub: [vikash](https://github.com/vikash)
-  - Instagram: [vikash](https://www.instagram.com/vikash/)
+  - GitHub: [vikash](https://github.com/vikashkumar14)
+  - Instagram: [vikash](https://www.instagram.com/codeninjavik/)
 
 ---
 

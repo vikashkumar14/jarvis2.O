@@ -57,5 +57,5 @@ appImage:
 npmRebuild: false
 publish:
   provider: github
-  owner: vikash
+  owner: vikashkumar14
   repo: IRIS-AI
