@@ -5,6 +5,10 @@
   "main": "./out/main/index.js",
   "author": "vikash",
   "homepage": "https://jarvisai.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vikashkumar14/IRIS-AI.git"
+  },
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",

@@ -196,8 +196,9 @@ app.whenReady().then(() => {
 
   autoUpdater.on('error', (err) => {
     const message = err == null ? 'unknown error' : (err.stack || err).toString()
-    if (message.includes('404')) {
-      console.warn('Auto-updater 404 ignored; no release available yet.')
+    if (/No published versions on GitHub|No releases|404/i.test(message)) {
+      console.warn('Auto-updater no published release yet:', message)
+      sendUpdaterEvent('not-available')
       return
     }
     dialog.showErrorBox('Auto-Updater Error', message)
@@ -234,7 +235,12 @@ app.whenReady().then(() => {
       await autoUpdater.checkForUpdates()
       return { success: true }
     } catch (error: any) {
-      sendUpdaterEvent('error', { error: (error && error.message) || 'Update check failed.' })
+      const errorMessage = (error && error.message) || 'Update check failed.'
+      if (/No published versions on GitHub|No releases|404/i.test(errorMessage)) {
+        sendUpdaterEvent('not-available')
+        return { success: false }
+      }
+      sendUpdaterEvent('error', { error: errorMessage })
       return { success: false }
     }
   })
