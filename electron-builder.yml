@@ -2,6 +2,8 @@ appId: com.vikash.jarvis
 productName: JARVIS 2.O
 directories:
   buildResources: build
+  output: C:/Temp/iris-builder-output
+asar: false
 files:
   - '!**/.vscode/*'
   - '!src/*'
