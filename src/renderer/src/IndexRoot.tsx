@@ -40,14 +40,27 @@ const IndexRoot = () => {
   }, [])
 
   useEffect(() => {
-    const watchdog = setInterval(() => {
-      if (isSystemActive && !irisService.isConnected) {
-        setIsSystemActive(false)
-        setIsMicMuted(true)
-        stopVision()
+    const handleVisibility = async () => {
+      if (document.visibilityState !== 'visible') return
+      if (!isSystemActive) return
+
+      if (!irisService.isConnected && irisService.socket?.readyState === WebSocket.CLOSED) {
+        try {
+          await irisService.connect()
+          setIsSystemActive(true)
+          setIsMicMuted(false)
+        } catch {
+          // ignore reconnect failure in background restore
+        }
       }
-    }, 1000)
-    return () => clearInterval(watchdog)
+
+      if (irisService.audioContext && irisService.audioContext.state === 'suspended') {
+        irisService.audioContext.resume().catch(() => {})
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [isSystemActive])
 
   const toggleSystem = async () => {
@@ -83,8 +96,6 @@ const IndexRoot = () => {
   }
 
   const startVision = async (mode: 'camera' | 'screen') => {
-    if (!isSystemActive) return
-
     try {
       if (activeStreamRef.current) {
         activeStreamRef.current.getTracks().forEach((t) => t.stop())

@@ -1,3 +1,5 @@
+import { getStoredApiKey } from '../utils/api-key-storage'
+
 export const runIndexDirectory = async (folderPath: string) => {
   try {
     window.dispatchEvent(
@@ -20,7 +22,7 @@ export const runSmartSearch = async (query: string) => {
       new CustomEvent('semantic-start', { detail: { mode: 'Search', target: query } })
     )
 
-    const groqKey = localStorage.getItem('iris_groq_api_key') || ''
+    const groqKey = getStoredApiKey('groq')
 
     if (!groqKey.trim()) {
       throw new Error(

@@ -1,6 +1,8 @@
+import { getStoredApiKey } from '../utils/api-key-storage'
+
 export const ingestCodebase = async (dirPath: string): Promise<string> => {
   try {
-    const geminiKey = localStorage.getItem('iris_custom_api_key') || ''
+    const geminiKey = getStoredApiKey('gemini')
 
     if (!geminiKey.trim()) {
       throw new Error('Missing Gemini API Key. Please update it in the Command Center Vault.')
@@ -40,8 +42,8 @@ export const ingestCodebase = async (dirPath: string): Promise<string> => {
 
 export const consultOracle = async (query: string): Promise<string> => {
   try {
-    const geminiKey = localStorage.getItem('iris_custom_api_key') || ''
-    const groqKey = localStorage.getItem('iris_groq_api_key') || ''
+    const geminiKey = getStoredApiKey('gemini')
+    const groqKey = getStoredApiKey('groq')
 
     if (!geminiKey.trim() || !groqKey.trim()) {
       throw new Error(

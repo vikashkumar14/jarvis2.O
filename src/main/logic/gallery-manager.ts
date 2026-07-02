@@ -1,4 +1,4 @@
-import { IpcMain, app, shell } from 'electron'
+import { IpcMain, app, shell, dialog } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import { pathToFileURL } from 'url'
@@ -73,6 +73,32 @@ export default function registerGalleryHandlers(ipcMain: IpcMain) {
       return false
     } catch (e) {
       return false
+    }
+  })
+
+  ipcMain.handle('upload-media', async () => {
+    try {
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        title: 'Upload media to gallery',
+        properties: ['openFile', 'multiSelections'],
+        filters: [
+          { name: 'Media Files', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'mp4', 'webm', 'mov', 'pdf'] }
+        ]
+      })
+
+      if (canceled || !filePaths || filePaths.length === 0) {
+        return { success: false, canceled: true }
+      }
+
+      for (const source of filePaths) {
+        const basename = path.basename(source)
+        const destination = path.join(GALLERY_DIR, `${Date.now()}_${basename}`)
+        fs.copyFileSync(source, destination)
+      }
+
+      return { success: true }
+    } catch (error: any) {
+      return { success: false, error: error.message }
     }
   })
 

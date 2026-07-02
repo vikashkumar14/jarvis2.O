@@ -14,30 +14,41 @@ export const readGalleryImages = async () => {
 
 export const analyzeDirectPhoto = async (filePath: string, socket: WebSocket | null) => {
   try {
-    const url = `file:///${filePath.replace(/\\/g, '/')}`
-    const res = await fetch(url)
-    const blob = await res.blob()
-    const reader = new FileReader()
+    let base64data: string | null = null
 
-    return new Promise((resolve) => {
-      reader.onloadend = () => {
-        const base64data = (reader.result as string).split(',')[1]
-
-        if (socket && socket.readyState === WebSocket.OPEN) {
-          socket.send(
-            JSON.stringify({
-              realtimeInput: { mediaChunks: [{ mimeType: 'image/png', data: base64data }] }
-            })
-          )
-          resolve(
-            '✅ Photo successfully injected into your vision. You can now see it. Describe what you see to vikash.'
-          )
-        } else {
-          resolve('❌ Failed: Connection not open.')
-        }
+    // Prefer main-process binary read (reliable on Windows and with spaces)
+    try {
+      if (window.electron?.ipcRenderer?.invoke) {
+        const b64 = await window.electron.ipcRenderer.invoke('read-file-base64', filePath)
+        if (b64) base64data = b64
       }
-      reader.readAsDataURL(blob)
-    })
+    } catch (err) {
+      base64data = null
+    }
+
+    // Fallback to file:// fetch if ipc read failed
+    if (!base64data) {
+      const url = `file:///${filePath.replace(/\\/g, '/')}`
+      const res = await fetch(url)
+      if (!res.ok) return '❌ Error loading direct photo.'
+      const blob = await res.blob()
+      const reader = new FileReader()
+      base64data = await new Promise((resolve) => {
+        reader.onloadend = () => resolve((reader.result as string).split(',')[1])
+        reader.readAsDataURL(blob)
+      })
+    }
+
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(
+        JSON.stringify({
+          realtimeInput: { mediaChunks: [{ mimeType: 'image/png', data: base64data }] }
+        })
+      )
+      return '✅ Photo successfully injected into your vision. You can now see it. Describe what you see to vikash.'
+    } else {
+      return '❌ Failed: Connection not open.'
+    }
   } catch (e) {
     return '❌ Error loading direct photo.'
   }

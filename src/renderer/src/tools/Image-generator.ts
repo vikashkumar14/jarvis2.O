@@ -1,4 +1,5 @@
 import { InferenceClient } from '@huggingface/inference'
+import { getStoredApiKeyWithSecureFallback } from '../utils/api-key-storage'
 
 export const handleImageGeneration = async (prompt: string) => {
   const loadingEvent = new CustomEvent('image-gen', {
@@ -7,7 +8,7 @@ export const handleImageGeneration = async (prompt: string) => {
   window.dispatchEvent(loadingEvent)
 
   try {
-    const HF_API_KEY = localStorage.getItem('iris_hf_api_key') || ''
+    const HF_API_KEY = await getStoredApiKeyWithSecureFallback('hf')
 
     if (!HF_API_KEY.trim()) {
       throw new Error(
@@ -37,9 +38,11 @@ export const handleImageGeneration = async (prompt: string) => {
     return `Visual generated successfully using FLUX.`
   } catch (e: any) {
 
-    let errorMessage = e.message
+    let errorMessage = e?.message || String(e)
 
-    if (errorMessage.includes('503') || errorMessage.includes('loading')) {
+    if (errorMessage.includes('401') || errorMessage.includes('403') || errorMessage.includes('invalid')) {
+      errorMessage = 'The Hugging Face key appears invalid or unauthorized. Please verify the key and permissions.'
+    } else if (errorMessage.includes('503') || errorMessage.includes('loading')) {
       errorMessage = 'Model is warming up (Free Tier). Please try again in 20 seconds.'
     }
 

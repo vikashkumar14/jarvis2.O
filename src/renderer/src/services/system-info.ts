@@ -17,6 +17,22 @@ export interface AppItem {
   id: string
 }
 
+export interface CalendarEvent {
+  name: string
+  path: string
+  state: string
+  author: string
+  lastRun: string | null
+  nextRun: string | null
+  result: string
+}
+
+export interface CalendarData {
+  date: string
+  timezone: string
+  events: CalendarEvent[]
+}
+
 export const getSystemStatus = async (): Promise<SystemStats | null> => {
   try {
     return await window.electron.ipcRenderer.invoke('get-system-stats')
@@ -39,5 +55,13 @@ export const getDrives = async (): Promise<any[]> => {
     return await window.electron.ipcRenderer.invoke('get-drives')
   } catch (error) {
     return []
+  }
+}
+
+export const getCalendarEvents = async (): Promise<CalendarData | null> => {
+  try {
+    return await window.electron.ipcRenderer.invoke('get-calendar-events')
+  } catch (error) {
+    return null
   }
 }

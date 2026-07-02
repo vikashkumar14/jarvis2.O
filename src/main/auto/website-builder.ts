@@ -5,6 +5,27 @@ import { GoogleGenAI } from '@google/genai'
 
 let previewWin: BrowserWindow | null = null
 
+function formatGenAIError(error: any) {
+  if (!error) return 'Unknown error from Gemini.'
+  if (typeof error === 'string') return error
+
+  if (error.message) {
+    try {
+      const parsed = JSON.parse(error.message)
+      if (parsed?.error?.message) {
+        return parsed.error.message
+      }
+    } catch {
+      // ignore parse failure
+    }
+    return error.message
+  }
+
+  if (error.error?.message) return error.error.message
+  if (error.statusText) return `${error.statusText} (${error.status})`
+  return JSON.stringify(error)
+}
+
 export default function registerWebsiteBuilder() {
   ipcMain.handle('build-animated-website', async (event, { prompt, geminiKey }) => {
     if (!event) return
@@ -13,7 +34,7 @@ export default function registerWebsiteBuilder() {
         width: 1280,
         height: 720,
         title: 'JARVIS Live Forge :: Web Synthesis',
-        backgroundColor: '#050505',
+        backgroundColor: '#000000',
         autoHideMenuBar: true,
         webPreferences: {
           nodeIntegration: false,
@@ -23,11 +44,138 @@ export default function registerWebsiteBuilder() {
 
       const shellHtml = `
         <html>
-          <body style="margin:0; overflow:hidden; background: #050505;">
-            <div id="loader" style="position:absolute; top:10px; left:10px; color:#00ffaa; font-family:monospace; font-size:12px; z-index:9999; text-shadow: 0 0 5px #00ffaa;">
-              [ JARVIS LIVE FORGE :: SYNTHESIZING UI... ]
+          <head>
+            <style>
+              * { margin:0; padding:0; box-sizing:border-box; }
+              html, body { width:100%; height:100%; overflow:hidden; background:#000; font-family:'Courier New', monospace; }
+
+              #matrix-canvas { position:absolute; top:0; left:0; width:100%; height:100%; z-index:1; }
+
+              #scanline {
+                position:absolute; top:0; left:0; width:100%; height:3px;
+                background:linear-gradient(90deg, transparent, #00ffaa, transparent);
+                z-index:11; opacity:0.6; animation: scan 3s linear infinite;
+              }
+              @keyframes scan { 0% { top:-4px; } 100% { top:100%; } }
+
+              #hud {
+                position:absolute; top:0; left:0; width:100%; height:100%; z-index:10;
+                display:flex; flex-direction:column; align-items:center; justify-content:center;
+                background: radial-gradient(circle at center, rgba(0,20,10,0.25) 0%, rgba(0,0,0,0.88) 80%);
+                transition: opacity 0.8s ease;
+              }
+
+              #jarvis-title {
+                font-size:76px; font-weight:900; letter-spacing:8px; color:#00ffaa;
+                text-shadow: 0 0 10px #00ffaa, 0 0 30px #00ffaa, 0 0 60px #00cc88;
+                animation: glitch 2.5s infinite, pulse 1.8s ease-in-out infinite;
+                text-align:center;
+              }
+              #jarvis-sub {
+                margin-top:12px; font-size:14px; letter-spacing:6px; color:#00ffaa99;
+              }
+
+              @keyframes pulse {
+                0%,100% { text-shadow:0 0 10px #00ffaa,0 0 30px #00ffaa,0 0 60px #00cc88; }
+                50% { text-shadow:0 0 22px #00ffaa,0 0 55px #00ffaa,0 0 95px #00cc88; }
+              }
+              @keyframes glitch {
+                0%,100% { transform: translate(0,0); }
+                2% { transform: translate(-3px,2px); }
+                4% { transform: translate(3px,-2px); }
+                6% { transform: translate(0,0); }
+                45% { transform: translate(0,0); }
+                47% { transform: translate(2px,-1px); }
+                49% { transform: translate(-2px,1px); }
+                51% { transform: translate(0,0); }
+              }
+
+              #terminal-log {
+                margin-top:36px; width:70%; max-width:700px; height:170px; overflow:hidden;
+                border:1px solid #00ffaa44; padding:12px; background:rgba(0,20,10,0.45);
+                font-size:12px; color:#00ffaa; box-shadow: 0 0 20px #00ffaa22 inset;
+              }
+              #terminal-log div { opacity:0; animation: fadein 0.4s forwards; white-space:pre-wrap; }
+              @keyframes fadein { to { opacity:1; } }
+              .cursor {
+                display:inline-block; width:8px; height:13px; background:#00ffaa;
+                animation: blink 1s step-end infinite; vertical-align:middle; margin-left:2px;
+              }
+              @keyframes blink { 50% { opacity:0; } }
+
+              #live-frame {
+                width:100vw; height:100vh; border:none; position:relative; z-index:2;
+                opacity:0; transition: opacity 1s ease;
+              }
+            </style>
+          </head>
+          <body>
+            <canvas id="matrix-canvas"></canvas>
+            <div id="scanline"></div>
+
+            <div id="hud">
+              <div id="jarvis-title">J.A.R.V.I.S 2.0</div>
+              <div id="jarvis-sub">// LIVE WEB SYNTHESIS ENGINE ONLINE</div>
+              <div id="terminal-log"></div>
             </div>
-            <iframe id="live-frame" style="width:100vw; height:100vh; border:none;"></iframe>
+
+            <iframe id="live-frame"></iframe>
+
+            <script>
+              // ---- Matrix rain background ----
+              const canvas = document.getElementById('matrix-canvas');
+              const ctx = canvas.getContext('2d');
+              function resizeCanvas(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+              resizeCanvas();
+              window.addEventListener('resize', resizeCanvas);
+
+              const glyphs = 'アイウエオカキクケコサシスセソ0123456789ABCDEFJARVIS'.split('');
+              const fontSize = 16;
+              let columns = Math.floor(canvas.width / fontSize);
+              let drops = Array(columns).fill(1);
+
+              function drawMatrix() {
+                ctx.fillStyle = 'rgba(0,0,0,0.08)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#00ffaa';
+                ctx.font = fontSize + 'px monospace';
+                for (let i = 0; i < drops.length; i++) {
+                  const char = glyphs[Math.floor(Math.random() * glyphs.length)];
+                  ctx.fillText(char, i * fontSize, drops[i] * fontSize);
+                  if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+                  drops[i]++;
+                }
+              }
+              window.__jarvisMatrixInterval = setInterval(drawMatrix, 45);
+
+              // ---- Fake terminal boot log ----
+              const logBox = document.getElementById('terminal-log');
+              const bootLines = [
+                '> INITIALIZING NEURAL RENDER CORE...',
+                '> CONNECTING TO GEMINI SYNTHESIS NODE...',
+                '> PARSING USER DIRECTIVE...',
+                '> COMPILING TAILWIND MATRIX...',
+                '> INJECTING GSAP MOTION LAYERS...',
+                '> BUILDING DOM STRUCTURE...',
+                '> STREAMING BYTES [OK]'
+              ];
+              let lineIndex = 0;
+              function pushLog(text) {
+                const line = document.createElement('div');
+                line.innerHTML = text + '<span class="cursor"></span>';
+                logBox.appendChild(line);
+                while (logBox.children.length > 8) logBox.removeChild(logBox.firstChild);
+                logBox.scrollTop = logBox.scrollHeight;
+              }
+              window.__jarvisLogInterval = setInterval(() => {
+                if (lineIndex < bootLines.length) {
+                  pushLog(bootLines[lineIndex]);
+                  lineIndex++;
+                } else {
+                  pushLog('> STREAMING DATA... ' + Math.floor(Math.random() * 900 + 100) + ' BYTES/S');
+                }
+              }, 600);
+            </script>
           </body>
         </html>
       `
@@ -106,8 +254,18 @@ OUTPUT ONLY RAW HTML.`
         previewWin.webContents
           .executeJavaScript(
             `
-          document.getElementById('loader').innerText = '[ SYNTHESIS COMPLETE ]'; 
-          setTimeout(() => document.getElementById('loader').style.display = 'none', 3000);
+          document.getElementById('jarvis-title').innerText = 'J.A.R.V.I.S 2.0 :: ONLINE';
+          document.getElementById('jarvis-sub').innerText = '// SYNTHESIS COMPLETE — RENDERING OUTPUT';
+          if (window.__jarvisLogInterval) clearInterval(window.__jarvisLogInterval);
+          if (window.__jarvisMatrixInterval) clearInterval(window.__jarvisMatrixInterval);
+          document.getElementById('live-frame').style.opacity = '1';
+          setTimeout(() => {
+            const hud = document.getElementById('hud');
+            const scan = document.getElementById('scanline');
+            if (hud) hud.style.opacity = '0';
+            if (scan) scan.style.display = 'none';
+            setTimeout(() => { if (hud) hud.style.display = 'none'; }, 900);
+          }, 1000);
         `
           )
           .catch(() => {})
@@ -122,7 +280,12 @@ OUTPUT ONLY RAW HTML.`
 
       return { success: true, filePath }
     } catch (err) {
-      return { success: false, error: String(err) }
+      const message = formatGenAIError(err)
+      const isUnavailable = /UNAVAILABLE|503|high demand|Service Unavailable/i.test(message)
+      const suggestion = isUnavailable
+        ? 'The Gemini model is currently under high demand. Please try again in a few minutes.'
+        : ''
+      return { success: false, error: `${message}${suggestion ? ' ' + suggestion : ''}` }
     }
   })
 }

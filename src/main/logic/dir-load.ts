@@ -143,15 +143,16 @@ export default function registerDirLoader(ipcMain: IpcMain) {
           name: item.name,
           type: type,
           path: item.path,
-          info: infoString
+          info: infoString,
+          isDirectory: item.isDirectory
         }
       })
 
-      return JSON.stringify({
+      return {
         directory: targetPath,
         items_found: results.length,
         content: results
-      })
+      }
     } catch (err) {
       return `System Error: ${err}`
     }

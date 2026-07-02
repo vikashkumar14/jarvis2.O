@@ -9,7 +9,8 @@ import {
   session,
   safeStorage,
   systemPreferences,
-  dialog
+  dialog,
+  clipboard
 } from 'electron'
 import path, { join } from 'path'
 import fs from 'fs'
@@ -22,6 +23,7 @@ import registerFileSearch from './logic/file-search'
 import registerFileOps from './logic/file-ops'
 import registerFileWrite from './logic/file-write'
 import registerFileRead from './logic/file-read'
+import registerFileReadBase64 from './logic/file-read-base64'
 import registerFileOpen from './logic/file-open'
 import registerDirLoader from './logic/dir-load'
 import registerFileScanner from './logic/file-launcher'
@@ -33,9 +35,12 @@ import registerterminalControl from './logic/terminal-control'
 import registerGalleryHandlers from './logic/gallery-manager'
 import registerGmailHandlers from './logic/gmail-manager'
 import registerLocationHandlers from './logic/live-location'
+import registerWeatherHandlers from './logic/weather'
+import registerSettingsHandlers from './logic/settings-manager'
 import registerAdbHandlers from './logic/adb-manager'
 import registerRealityHacker from './logic/reality-hacker'
 import registerIrisCoder from './services/iris-coder'
+import registerLocalChat from './services/local-chat'
 import registerTelekinesis from './logic/telekinesis'
 import registerPermanentMemory from './logic/permanent-memory'
 import registerWormhole from './services/wormhole'
@@ -91,7 +96,8 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       backgroundThrottling: false,
-      webSecurity: false
+      webSecurity: false,
+      webviewTag: true
     }
   })
 
@@ -167,7 +173,6 @@ app.whenReady().then(() => {
   if (isAutoUpdateEnabled) {
     autoUpdater.autoDownload = false
     autoUpdater.autoInstallOnAppQuit = false
-    autoUpdater.checkForUpdates()
   }
 
   autoUpdater.on('checking-for-update', () => {
@@ -182,7 +187,7 @@ app.whenReady().then(() => {
     dialog.showMessageBox({
       type: 'info',
       title: 'Update Found',
-      message: `Neural Core Update Found: v${info.version}. Downloading in background...`
+      message: `Neural Core Update Found: v${info.version}. Please download and install the update from the settings panel.`
     })
   })
 
@@ -195,9 +200,10 @@ app.whenReady().then(() => {
   })
 
   autoUpdater.on('error', (err) => {
-    const message = err == null ? 'unknown error' : (err.stack || err).toString()
-    if (/No published versions on GitHub|No releases|404/i.test(message)) {
-      console.warn('Auto-updater no published release yet:', message)
+    const message = err == null ? 'unknown error' : (err.message || '').toString()
+    const fullText = err == null ? 'unknown error' : (err.stack || err.toString()).toString()
+    if (/No published versions on GitHub|No releases|404|GitHubProvider/i.test(fullText)) {
+      console.warn('Auto-updater no published release yet or GitHub provider issue:', fullText)
       sendUpdaterEvent('not-available')
       return
     }
@@ -225,6 +231,15 @@ app.whenReady().then(() => {
     return app.getVersion()
   })
 
+  ipcMain.handle('copy-text-to-clipboard', async (_event, text: string) => {
+    try {
+      clipboard.writeText(text)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error)?.message || 'Clipboard write failed.' }
+    }
+  })
+
   ipcMain.handle('check-for-updates', async () => {
     if (!isAutoUpdateEnabled) {
       sendUpdaterEvent('error', { error: 'Auto-update only works in packaged builds.' })
@@ -236,7 +251,8 @@ app.whenReady().then(() => {
       return { success: true }
     } catch (error: any) {
       const errorMessage = (error && error.message) || 'Update check failed.'
-      if (/No published versions on GitHub|No releases|404/i.test(errorMessage)) {
+      const errorText = error && (error.stack || error.toString())
+      if (/No published versions on GitHub|No releases|404|GitHubProvider/i.test(errorText)) {
         sendUpdaterEvent('not-available')
         return { success: false }
       }
@@ -302,21 +318,27 @@ app.whenReady().then(() => {
     }
   }
 
-  ipcMain.handle('secure-save-keys', async (_, { groqKey, geminiKey }) => {
+  ipcMain.handle('secure-save-keys', async (_, { groqKey, geminiKey, hfKey, tavilyKey }) => {
     try {
-      let groqEncrypted, geminiEncrypted
+      let groqEncrypted, geminiEncrypted, hfEncrypted, tavilyEncrypted
 
       if (safeStorage.isEncryptionAvailable()) {
-        groqEncrypted = safeStorage.encryptString(groqKey).toString('base64')
-        geminiEncrypted = safeStorage.encryptString(geminiKey).toString('base64')
+        groqEncrypted = safeStorage.encryptString(groqKey || '').toString('base64')
+        geminiEncrypted = safeStorage.encryptString(geminiKey || '').toString('base64')
+        hfEncrypted = safeStorage.encryptString(hfKey || '').toString('base64')
+        tavilyEncrypted = safeStorage.encryptString(tavilyKey || '').toString('base64')
       } else {
-        groqEncrypted = Buffer.from(groqKey).toString('base64')
-        geminiEncrypted = Buffer.from(geminiKey).toString('base64')
+        groqEncrypted = Buffer.from(groqKey || '').toString('base64')
+        geminiEncrypted = Buffer.from(geminiKey || '').toString('base64')
+        hfEncrypted = Buffer.from(hfKey || '').toString('base64')
+        tavilyEncrypted = Buffer.from(tavilyKey || '').toString('base64')
       }
 
       const secureData = {
         groq: groqEncrypted,
-        gemini: geminiEncrypted
+        gemini: geminiEncrypted,
+        hf: hfEncrypted,
+        tavily: tavilyEncrypted
       }
 
       fs.writeFileSync(secureConfigPath, JSON.stringify(secureData))
@@ -330,17 +352,21 @@ app.whenReady().then(() => {
     if (!fs.existsSync(secureConfigPath)) return null
     try {
       const data = JSON.parse(fs.readFileSync(secureConfigPath, 'utf8'))
-      let groqKey, geminiKey
+      let groqKey, geminiKey, hfKey, tavilyKey
 
       if (safeStorage.isEncryptionAvailable()) {
         groqKey = safeStorage.decryptString(Buffer.from(data.groq, 'base64'))
         geminiKey = safeStorage.decryptString(Buffer.from(data.gemini, 'base64'))
+        hfKey = data.hf ? safeStorage.decryptString(Buffer.from(data.hf, 'base64')) : ''
+        tavilyKey = data.tavily ? safeStorage.decryptString(Buffer.from(data.tavily, 'base64')) : ''
       } else {
         groqKey = Buffer.from(data.groq, 'base64').toString('utf8')
         geminiKey = Buffer.from(data.gemini, 'base64').toString('utf8')
+        hfKey = data.hf ? Buffer.from(data.hf, 'base64').toString('utf8') : ''
+        tavilyKey = data.tavily ? Buffer.from(data.tavily, 'base64').toString('utf8') : ''
       }
 
-      return { groqKey, geminiKey }
+      return { groqKey, geminiKey, hfKey, tavilyKey }
     } catch (err) {
       return null
     }
@@ -386,10 +412,13 @@ app.whenReady().then(() => {
   registerWormhole({ ipcMain })
   registerPermanentMemory({ ipcMain, app })
   registerTelekinesis({ ipcMain })
+  registerLocalChat(ipcMain)
   registerIrisCoder({ ipcMain, app })
   registerRealityHacker(ipcMain)
   registerAdbHandlers(ipcMain)
   registerLocationHandlers(ipcMain)
+  registerWeatherHandlers(ipcMain)
+  registerSettingsHandlers(ipcMain)
   registerGmailHandlers(ipcMain)
   registerGalleryHandlers(ipcMain)
   registerterminalControl(ipcMain)
@@ -401,6 +430,7 @@ app.whenReady().then(() => {
   registerFileOpen(ipcMain)
   registerFileSearch(ipcMain)
   registerFileRead(ipcMain)
+  registerFileReadBase64(ipcMain)
   registerFileWrite(ipcMain)
   registerFileOps(ipcMain)
   registerFileScanner(ipcMain)
@@ -408,8 +438,12 @@ app.whenReady().then(() => {
   registerIpcHandlers({ ipcMain, app })
 
   ipcMain.handle('get-screen-source', async () => {
-    const sources = await desktopCapturer.getSources({ types: ['screen'] })
-    return sources[0]?.id
+    try {
+      const sources = await desktopCapturer.getSources({ types: ['screen'] })
+      return sources[0]?.id ?? null
+    } catch {
+      return null
+    }
   })
 
   createWindow()

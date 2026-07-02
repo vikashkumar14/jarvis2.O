@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { FaAndroid } from 'react-icons/fa6'
+import { FaApple, FaAndroid, FaWindows } from 'react-icons/fa6'
 import {
   RiLinkM,
   RiWifiLine,
@@ -17,7 +17,13 @@ import {
   RiAddLine,
   RiTerminalLine,
   RiFileCopyLine,
-  RiCheckLine
+  RiCheckLine,
+  RiArrowRightSLine,
+  RiCodeLine,
+  RiUsbLine,
+  RiShieldCheckLine,
+  RiRocketLine,
+  RiArrowLeftLine
 } from 'react-icons/ri'
 
 const PhoneView = ({ glassPanel }: { glassPanel?: string }) => {
@@ -27,7 +33,8 @@ const PhoneView = ({ glassPanel }: { glassPanel?: string }) => {
   const [uiMode, setUiMode] = useState<'history' | 'manual'>('history')
   const [errorMsg, setErrorMsg] = useState('')
   const [deviceHistory, setDeviceHistory] = useState<any[]>([])
-  const [copied, setCopied] = useState(false) 
+  const [copied, setCopied] = useState(false)
+  const [connectingIp, setConnectingIp] = useState('')
 
   const screenRef = useRef<HTMLImageElement>(null)
   const isStreaming = useRef(false)
@@ -87,6 +94,7 @@ const PhoneView = ({ glassPanel }: { glassPanel?: string }) => {
   const connectToDevice = async (targetIp: string, targetPort: string) => {
     if (!targetIp || !targetPort) return setErrorMsg('IP and Port are required.')
     setStatus('connecting')
+    setConnectingIp(targetIp)
     setErrorMsg('')
 
     try {
@@ -106,6 +114,8 @@ const PhoneView = ({ glassPanel }: { glassPanel?: string }) => {
     } catch (e) {
       setStatus('idle')
       setErrorMsg('Electron IPC Error.')
+    } finally {
+      setConnectingIp('')
     }
   }
 
@@ -168,414 +178,592 @@ const PhoneView = ({ glassPanel }: { glassPanel?: string }) => {
     return () => clearInterval(interval)
   }, [status])
 
-  if (status !== 'connected' && uiMode === 'history') {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-start pt-16 p-10 animate-in fade-in duration-300 bg-[#050505] min-h-screen text-emerald-50 relative overflow-y-auto scrollbar-small pb-24">
-        <div className="w-full max-w-6xl flex flex-col items-center">
-          <div className="flex flex-col items-center text-center mb-16">
-            <div className="p-4 bg-emerald-500/10 rounded-2xl border border-emerald-500/30 mb-6 inline-block">
-              <RiHistoryLine className="text-emerald-400" size={32} />
-            </div>
-            <h1 className="text-4xl font-black text-white tracking-[0.2em] uppercase">
-              NEURAL ARCHIVE
-            </h1>
-            <p className="text-xs text-emerald-500 font-mono tracking-widest mt-2">
-              SELECT A TARGET DEVICE FOR UPLINK
-            </p>
-          </div>
-
-          <div className="flex flex-wrap justify-center gap-10">
-            {deviceHistory.map((dev, i) => (
-              <button
-                key={i}
-                onClick={() => connectToDevice(dev.ip, dev.port)}
-                className="w-55 h-110 bg-black border-8 border-zinc-900 rounded-[3rem] relative flex flex-col p-2 group hover:border-emerald-500/50 transition-all duration-500 shadow-2xl hover:shadow-[0_0_40px_rgba(16,185,129,0.2)]"
-              >
-                <div className="absolute top-3 left-1/2 -translate-x-1/2 w-20 h-5 bg-zinc-900 rounded-full z-20 group-hover:bg-emerald-900/50 transition-colors"></div>
-                <div className="flex-1 bg-linear-to-b from-zinc-900 to-black rounded-[2.2rem] overflow-hidden flex flex-col items-center justify-center p-6 relative">
-                  <div className="absolute inset-0 bg-emerald-500/0 group-hover:bg-emerald-500/10 transition-colors duration-500"></div>
-                  <RiSmartphoneLine
-                    size={64}
-                    className="text-zinc-700 group-hover:text-emerald-400 mb-6 transition-colors duration-500 drop-shadow-[0_0_15px_rgba(16,185,129,0)] group-hover:drop-shadow-[0_0_15px_rgba(16,185,129,0.5)]"
-                  />
-                  <h3 className="text-lg font-black text-white mb-2 tracking-widest text-center uppercase z-10">
-                    {dev.model}
-                  </h3>
-                  <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-500 group-hover:text-emerald-300 z-10">
-                    <RiWifiLine /> {dev.ip}:{dev.port}
-                  </div>
-                  <div className="mt-8 px-6 py-2 border border-zinc-700 group-hover:border-emerald-500 bg-transparent group-hover:bg-emerald-500 text-zinc-500 group-hover:text-black font-bold text-[10px] tracking-widest rounded-full transition-all z-10">
-                    {status === 'connecting' && ip === dev.ip ? 'LINKING...' : 'UPLINK'}
-                  </div>
-                </div>
-              </button>
-            ))}
-
-            <button
-              onClick={() => setUiMode('manual')}
-              className="w-55 h-110 bg-transparent border-4 border-dashed border-zinc-800 hover:border-emerald-500/50 rounded-[3rem] flex flex-col items-center justify-center group transition-all duration-500 hover:bg-emerald-500/5"
-            >
-              <div className="w-16 h-16 rounded-full bg-zinc-900 group-hover:bg-emerald-500 flex items-center justify-center text-zinc-500 group-hover:text-black transition-all mb-4">
-                <RiAddLine size={32} />
-              </div>
-              <span className="text-xs font-bold text-zinc-500 group-hover:text-emerald-400 tracking-widest uppercase">
-                NEW DEVICE
-              </span>
-            </button>
-          </div>
-        </div>
-      </div>
-    )
+  // Picks a brand icon purely from the saved model/os string — cosmetic only,
+  // doesn't touch any connection logic.
+  const getDeviceIcon = (dev: any) => {
+    const blob = `${dev?.model || ''} ${dev?.os || ''}`.toLowerCase()
+    if (blob.includes('iphone') || blob.includes('ios')) return FaApple
+    if (blob.includes('windows')) return FaWindows
+    if (blob.includes('android') || blob.includes('samsung') || blob.includes('redmi') || blob.includes('oneplus') || blob.includes('mi ')) return FaAndroid
+    return RiSmartphoneLine
   }
 
-  if (status !== 'connected' && uiMode === 'manual') {
-    return (
-      <div className="flex-1 flex flex-col lg:flex-row items-start justify-center gap-8 p-6 md:p-12 animate-in fade-in duration-300 bg-[#050505] min-h-dvh overflow-y-auto text-emerald-50 pb-24">
-        <div className="w-full lg:w-1/3 max-w-md flex flex-col gap-6 shrink-0">
-          <div className="p-6 bg-black border border-emerald-900/40 rounded-2xl shadow-lg flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-emerald-950/40 rounded-xl border border-emerald-400/30">
-                <FaAndroid className="text-emerald-400 text-2xl" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white tracking-wide">Device Uplink</h2>
-                <p className="text-[10px] text-emerald-400/70 font-mono">TCP/IP CONFIGURATION</p>
-              </div>
-            </div>
+  const guideSteps = [
+    {
+      icon: RiCodeLine,
+      title: 'Enable USB debugging',
+      desc: 'Go to Settings > Developer Options and enable USB Debugging. (If hidden, tap "Build Number" 7 times in About Phone).'
+    },
+    {
+      icon: RiUsbLine,
+      title: 'Connect physically',
+      desc: 'Connect the device to this PC via USB cable. Accept the "Allow USB debugging" prompt on your phone.'
+    },
+    {
+      icon: RiShieldCheckLine,
+      title: 'Start the daemon',
+      desc: 'Open your PC terminal and run this command to open the wireless port:',
+      command: true
+    },
+    {
+      icon: RiRocketLine,
+      title: 'Disconnect & connect',
+      desc: 'Unplug the USB cable. Enter the phone\'s Wi-Fi IP on the left and establish the connection.'
+    }
+  ]
 
-            {deviceHistory.length > 0 && (
-              <button
-                onClick={() => setUiMode('history')}
-                className="text-[10px] font-bold tracking-widest text-emerald-500 hover:text-emerald-300 hover:bg-emerald-500/10 uppercase px-3 py-1.5 border border-emerald-500/30 rounded-lg transition-all shrink-0 ml-2"
-              >
-                ARCHIVE
-              </button>
-            )}
-          </div>
+  const DeckStyles = () => (
+    <style>{`
+      .pv-root {
+        --bg-base: #101115;
+        --bg-sunken: #0B0C10;
+        --panel: #1B1C23;
+        --panel-raised: #202129;
+        --line: #2C2D37;
+        --line-soft: #24252E;
+        --ink: #F5F5F2;
+        --ink-dim: #9C9CA8;
+        --ink-faint: #5F606B;
+        --green: #00E38C;
+        --green-soft: #00E38C1A;
+        --amber: #FFB454;
+        --amber-soft: #FFB4541A;
+        --danger: #FF6B6B;
+        font-family: 'Manrope', -apple-system, sans-serif;
+        background:
+          radial-gradient(ellipse 1000px 520px at 20% -8%, #1B1C24 0%, transparent 60%),
+          var(--bg-base);
+        color: var(--ink);
+      }
+      .pv-root .font-data { font-family: 'JetBrains Mono', ui-monospace, monospace; }
 
-          <div
-            className={`${glassPanel || 'bg-zinc-950'} p-8 border border-emerald-900/40 rounded-2xl shadow-lg flex flex-col gap-6`}
-          >
-            {errorMsg && (
-              <div className="p-4 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded-lg font-mono leading-relaxed">
-                {errorMsg}
-              </div>
-            )}
+      .pv-panel {
+        background: linear-gradient(180deg, var(--panel-raised) 0%, var(--panel) 100%);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        box-shadow:
+          0 1px 0 0 rgba(255,255,255,0.04) inset,
+          0 16px 32px -18px rgba(0,0,0,0.55);
+      }
 
-            <div>
-              <label className="text-xs font-bold text-emerald-400/80 tracking-wide mb-3 block">
-                Target IP Address
-              </label>
-              <div className="flex items-center bg-black border border-emerald-900/50 rounded-xl px-5 py-4 focus-within:border-emerald-400 transition-all">
-                <RiWifiLine className="text-emerald-400 mr-3" size={20} />
-                <input
-                  type="text"
-                  value={ip}
-                  onChange={(e) => setIp(e.target.value)}
-                  placeholder="192.168.1.xxx"
-                  className="bg-transparent border-none outline-none text-base text-emerald-400 w-full font-mono placeholder:text-emerald-900/50"
-                />
-              </div>
-            </div>
+      .pv-well {
+        background: var(--bg-sunken);
+        border: 1px solid var(--line-soft);
+        border-radius: 14px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.4) inset;
+      }
 
-            <div>
-              <label className="text-xs font-bold text-emerald-400/80 tracking-wide mb-3 block">
-                Target Port
-              </label>
-              <div className="flex items-center bg-black border border-emerald-900/50 rounded-xl px-5 py-4 focus-within:border-emerald-400 transition-all">
-                <RiLinkM className="text-emerald-400 mr-3" size={20} />
-                <input
-                  type="text"
-                  value={port}
-                  onChange={(e) => setPort(e.target.value)}
-                  placeholder="5555"
-                  className="bg-transparent border-none outline-none text-base text-emerald-400 w-full font-mono placeholder:text-emerald-900/50"
-                />
-              </div>
-            </div>
+      .pv-icon-badge {
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: linear-gradient(180deg, #262731 0%, #1D1E26 100%);
+        box-shadow: 0 1px 0 0 rgba(255,255,255,0.05) inset, 0 4px 10px -4px rgba(0,0,0,0.5);
+      }
 
-            <button
-              onClick={handleManualConnect}
-              disabled={status === 'connecting'}
-              className="w-full mt-4 py-5 bg-emerald-950 border border-emerald-400/50 hover:bg-emerald-400 text-emerald-400 hover:text-black font-bold rounded-xl tracking-widest transition-all duration-300 uppercase text-sm"
-            >
-              {status === 'connecting' ? 'INITIALIZING LINK...' : 'ESTABLISH CONNECTION'}
-            </button>
-          </div>
+      .pv-btn-3d {
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: linear-gradient(180deg, #2A2B34 0%, #212229 100%);
+        box-shadow:
+          0 1px 0 0 rgba(255,255,255,0.06) inset,
+          0 3px 0 0 #15161C,
+          0 6px 10px -4px rgba(0,0,0,0.5);
+        transition: transform 0.12s ease, box-shadow 0.12s ease;
+      }
+      .pv-btn-3d:active { transform: translateY(2px); box-shadow: 0 1px 0 0 rgba(255,255,255,0.04) inset, 0 1px 0 0 #15161C; }
+
+      .pv-btn-primary {
+        border-radius: 12px;
+        background: linear-gradient(180deg, #33FFB0 0%, var(--green) 100%);
+        box-shadow: 0 1px 0 0 rgba(255,255,255,0.25) inset, 0 3px 0 0 #00B36B, 0 8px 16px -6px rgba(0,227,140,0.4);
+        transition: transform 0.12s ease, box-shadow 0.12s ease;
+      }
+      .pv-btn-primary:active { transform: translateY(2px); box-shadow: 0 1px 0 0 rgba(255,255,255,0.15) inset, 0 1px 0 0 #00B36B; }
+      .pv-btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+      .pv-field-shell {
+        background: var(--bg-sunken);
+        border: 1px solid var(--line-soft);
+        border-radius: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.35) inset;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      }
+      .pv-field-shell:focus-within {
+        border-color: var(--green);
+        box-shadow: 0 0 0 3px var(--green-soft), 0 2px 4px rgba(0,0,0,0.35) inset;
+      }
+
+      .pv-eyebrow {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+      }
+
+      /* device grid card */
+      .pv-grid-card {
+        border-radius: 20px;
+        background: linear-gradient(180deg, var(--panel-raised) 0%, var(--panel) 100%);
+        border: 1px solid var(--line);
+        transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+      }
+      .pv-grid-card:hover {
+        border-color: #00B36B;
+        transform: translateY(-3px);
+        box-shadow: 0 20px 40px -18px rgba(0,227,140,0.22);
+      }
+      .pv-grid-card.is-live { border-color: var(--green); }
+
+      .pv-badge {
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        padding: 4px 12px;
+      }
+      .pv-badge-live { background: var(--green-soft); color: var(--green); border: 1px solid #00E38C33; }
+      .pv-badge-idle { background: var(--bg-sunken); color: var(--ink-faint); border: 1px solid var(--line-soft); }
+      .pv-badge-busy { background: var(--amber-soft); color: var(--amber); border: 1px solid #FFB45433; }
+
+      .pv-new-card {
+        border-radius: 20px;
+        border: 2px dashed var(--line);
+        transition: all 0.25s ease;
+      }
+      .pv-new-card:hover { border-color: var(--green); background: var(--green-soft); }
+
+      .pv-guide-item {
+        border-radius: 16px;
+        border: 1px solid var(--line-soft);
+        background: var(--bg-sunken);
+        transition: border-color 0.2s ease;
+      }
+      .pv-guide-item:hover { border-color: var(--line); }
+
+      .pv-stat-card {
+        background: linear-gradient(180deg, var(--panel-raised) 0%, var(--panel) 100%);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        transition: border-color 0.2s ease;
+      }
+      .pv-stat-card:hover { border-color: #00B36B; }
+
+      .pv-meter-track { background: var(--bg-sunken); border-radius: 999px; overflow: hidden; }
+
+      .pv-quick-btn {
+        background: var(--bg-sunken);
+        border: 1px solid var(--line-soft);
+        border-radius: 16px;
+        transition: all 0.18s ease;
+      }
+      .pv-quick-btn:hover { border-color: var(--green); background: var(--green-soft); }
+
+      .pv-phone-frame {
+        border-radius: 2.8rem;
+        background: var(--bg-sunken);
+        border: 10px solid var(--panel-raised);
+        box-shadow:
+          0 1px 0 0 rgba(255,255,255,0.04) inset,
+          0 30px 60px -20px rgba(0,227,140,0.15),
+          0 20px 40px -18px rgba(0,0,0,0.6);
+      }
+
+      .pv-status-dot-live { box-shadow: 0 0 0 3px var(--amber-soft), 0 0 10px var(--amber); }
+
+      /* decorative hero glow — purely visual, no logic tied to it */
+      .pv-hero-ring {
+        position: absolute;
+        border-radius: 50%;
+        border: 1px solid #00E38C33;
+        animation: pv-ring-pulse 3.5s ease-in-out infinite;
+      }
+      @keyframes pv-ring-pulse {
+        0%, 100% { opacity: 0.25; transform: scale(0.96); }
+        50% { opacity: 0.6; transform: scale(1.03); }
+      }
+      .pv-hero-glow {
+        background: radial-gradient(circle, #00E38C33 0%, transparent 70%);
+        filter: blur(4px);
+      }
+    `}</style>
+  )
+
+  // Decorative hero used on the empty/archive state — mirrors the glowing
+  // phone visual from the reference, no functional weight.
+  const HeroGlow = () => (
+    <div className="relative w-56 h-56 flex items-center justify-center shrink-0">
+      <div className="pv-hero-glow absolute w-40 h-40 rounded-full" />
+      <div className="pv-hero-ring absolute w-44 h-44" style={{ animationDelay: '0s' }} />
+      <div className="pv-hero-ring absolute w-56 h-56" style={{ animationDelay: '0.6s' }} />
+      <div className="pv-hero-ring absolute w-32 h-32" style={{ animationDelay: '1.2s' }} />
+      <RiSmartphoneLine size={52} className="text-[#4DFFC7] relative z-10" />
+    </div>
+  )
+
+  const ConnectionGuidePanel = () => (
+    <div className="pv-panel p-6 md:p-7 flex flex-col w-full lg:w-80 shrink-0">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="pv-icon-badge w-10 h-10 flex items-center justify-center">
+          <RiTerminalBoxLine className="text-[#4DFFC7]" size={18} />
         </div>
+        <div>
+          <h3 className="text-sm font-bold text-[var(--ink)]">Connection guide</h3>
+          <p className="text-[10px] text-[var(--ink-faint)] font-data">Wireless ADB setup</p>
+        </div>
+      </div>
 
-        <div className="w-full lg:w-1/2 max-w-2xl flex flex-col">
-          <div className="bg-black border border-emerald-900/40 rounded-2xl shadow-lg p-8 md:p-10 flex flex-col relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
-              <RiTerminalLine size={240} />
-            </div>
-
-            <div className="flex items-center gap-4 mb-8 relative z-10">
-              <RiTerminalBoxLine className="text-emerald-500" size={28} />
-              <h3 className="text-base font-bold tracking-[0.2em] text-emerald-400 uppercase">
-                First-Time Setup Protocol
-              </h3>
-            </div>
-
-            <p className="text-sm text-zinc-400 font-mono mb-10 leading-relaxed relative z-10 pr-4">
-              Wireless ADB requires the device's TCP/IP daemon to be initialized via USB first.
-              Follow these steps to prepare your device for remote uplink.
-            </p>
-
-            <div className="space-y-8 relative z-10">
-              <div className="flex gap-5">
-                <div className="flex flex-col items-center">
-                  <div className="w-8 h-8 rounded-full bg-emerald-950 border border-emerald-500/50 flex items-center justify-center text-xs font-bold text-emerald-400 shrink-0">
-                    1
-                  </div>
-                  <div className="w-px h-full bg-emerald-900/30 my-2"></div>
-                </div>
-                <div className="pb-3">
-                  <h4 className="text-sm font-bold text-white tracking-wider mb-2">
-                    ENABLE USB DEBUGGING
-                  </h4>
-                  <p className="text-xs font-mono text-zinc-500 leading-relaxed">
-                    Go to{' '}
-                    <span className="text-emerald-400/70">Settings &gt; Developer Options</span> on
-                    your Android and enable USB Debugging. (If hidden, tap "Build Number" 7 times in
-                    About Phone).
-                  </p>
-                </div>
+      <div className="flex flex-col gap-3">
+        {guideSteps.map((step, i) => (
+          <div key={i} className="pv-guide-item p-4">
+            <div className="flex items-start gap-3">
+              <div className="pv-icon-badge w-9 h-9 flex items-center justify-center shrink-0">
+                <step.icon className="text-[#4DFFC7]" size={16} />
               </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-xs font-bold text-[var(--ink)] mb-1">
+                  {i + 1}. {step.title}
+                </h4>
+                <p className="text-[11px] text-[var(--ink-dim)] leading-relaxed">{step.desc}</p>
 
-              <div className="flex gap-5">
-                <div className="flex flex-col items-center">
-                  <div className="w-8 h-8 rounded-full bg-emerald-950 border border-emerald-500/50 flex items-center justify-center text-xs font-bold text-emerald-400 shrink-0">
-                    2
-                  </div>
-                  <div className="w-px h-full bg-emerald-900/30 my-2"></div>
-                </div>
-                <div className="pb-3">
-                  <h4 className="text-sm font-bold text-white tracking-wider mb-2">
-                    PHYSICAL LINK
-                  </h4>
-                  <p className="text-xs font-mono text-zinc-500 leading-relaxed">
-                    Connect the device to this PC via USB cable. Accept the "Allow USB debugging"
-                    prompt on your phone's screen.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-5">
-                <div className="flex flex-col items-center">
-                  <div className="w-8 h-8 rounded-full bg-emerald-950 border border-emerald-500/50 flex items-center justify-center text-xs font-bold text-emerald-400 shrink-0">
-                    3
-                  </div>
-                  <div className="w-px h-full bg-emerald-900/30 my-2"></div>
-                </div>
-                <div className="pb-3 w-full">
-                  <h4 className="text-sm font-bold text-white tracking-wider mb-2">
-                    START THE DAEMON
-                  </h4>
-                  <p className="text-xs font-mono text-zinc-500 leading-relaxed mb-3">
-                    Open your PC's Command Prompt / Terminal and execute the following command to
-                    open the port:
-                  </p>
-
-                  <div className="relative group w-full">
-                    <code className="block w-full bg-zinc-950 border border-emerald-900/30 text-emerald-400 text-sm p-4 pr-14 rounded-xl tracking-widest font-mono">
+                {step.command && (
+                  <div className="relative group mt-3">
+                    <code className="pv-well block w-full text-[#4DFFC7] text-xs p-3 pr-11 tracking-widest font-data">
                       adb tcpip 5555
                     </code>
                     <button
                       onClick={handleCopyCommand}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-emerald-600 hover:text-emerald-400 hover:bg-emerald-900/30 rounded-lg transition-all"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-[var(--ink-faint)] hover:text-[#4DFFC7] hover:bg-[var(--green-soft)] rounded-lg transition-all cursor-pointer"
                       title="Copy command"
                     >
                       {copied ? (
-                        <RiCheckLine size={20} className="text-emerald-400" />
+                        <RiCheckLine size={15} className="text-[var(--amber)]" />
                       ) : (
-                        <RiFileCopyLine size={20} />
+                        <RiFileCopyLine size={15} />
                       )}
                     </button>
                   </div>
-                </div>
-              </div>
-
-              <div className="flex gap-5">
-                <div className="flex flex-col items-center">
-                  <div className="w-8 h-8 rounded-full bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)] flex items-center justify-center text-xs font-bold text-black shrink-0">
-                    4
-                  </div>
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-white tracking-wider mb-2">
-                    SEVER CABLE & CONNECT
-                  </h4>
-                  <p className="text-xs font-mono text-zinc-500 leading-relaxed">
-                    Disconnect the USB cable. Find your phone's Wi-Fi IP address, enter it in the
-                    form to the left, and establish the connection.
-                  </p>
-                </div>
+                )}
               </div>
             </div>
           </div>
+        ))}
+      </div>
+    </div>
+  )
+
+  // ---------- ARCHIVE / HISTORY VIEW ----------
+  if (status !== 'connected' && uiMode === 'history') {
+    return (
+      <div className="pv-root flex-1 min-h-screen overflow-y-auto scrollbar-small p-6 md:p-10 pb-24">
+        <DeckStyles />
+        <div className="w-full max-w-7xl mx-auto flex flex-col xl:flex-row gap-8">
+          <div className="flex-1 min-w-0">
+            <div className="pv-panel p-8 md:p-10 flex flex-col md:flex-row items-center gap-8 mb-8 overflow-hidden relative">
+              <div className="flex-1 min-w-0">
+                <div className="pv-icon-badge w-12 h-12 flex items-center justify-center mb-5">
+                  <RiHistoryLine className="text-[#4DFFC7]" size={22} />
+                </div>
+                <h1 className="text-2xl md:text-3xl font-bold text-[var(--ink)] tracking-tight mb-2">
+                  Device Archive
+                </h1>
+                <p className="text-xs text-[var(--ink-faint)] font-data tracking-wide">
+                  Choose a device to connect or add a new one
+                </p>
+              </div>
+              <HeroGlow />
+            </div>
+
+            {errorMsg && (
+              <div className="p-4 mb-6 bg-[var(--danger)]/10 border border-[var(--danger)]/30 text-[var(--danger)] text-xs rounded-xl font-data leading-relaxed">
+                {errorMsg}
+              </div>
+            )}
+
+            <h3 className="pv-eyebrow mb-4">Connected devices</h3>
+
+            {deviceHistory.length === 0 ? (
+              <div className="pv-well p-8 text-center text-xs text-[var(--ink-faint)] font-data mb-6">
+                No saved devices yet — add one to get started.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5 mb-6">
+                {deviceHistory.map((dev, i) => {
+                  const Icon = getDeviceIcon(dev)
+                  const isBusy = status === 'connecting' && connectingIp === dev.ip
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => connectToDevice(dev.ip, dev.port)}
+                      disabled={status === 'connecting'}
+                      className={`pv-grid-card p-5 flex flex-col items-center text-center cursor-pointer disabled:cursor-not-allowed ${isBusy ? 'is-live' : ''}`}
+                    >
+                      <div className="pv-well w-16 h-16 rounded-2xl flex items-center justify-center mb-4">
+                        <Icon size={26} className="text-[var(--ink-dim)]" />
+                      </div>
+                      <h3 className="text-sm font-bold text-[var(--ink)] mb-1 truncate w-full">
+                        {dev.model || 'Unnamed device'}
+                      </h3>
+                      <div className="flex items-center gap-1.5 text-[10px] font-data text-[var(--ink-faint)] mb-4">
+                        <RiWifiLine size={11} /> {dev.ip}:{dev.port}
+                      </div>
+                      <span className={`pv-badge ${isBusy ? 'pv-badge-busy' : 'pv-badge-idle'}`}>
+                        {isBusy ? 'Connecting…' : 'Tap to connect'}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            <button
+              onClick={() => setUiMode('manual')}
+              className="pv-new-card w-full py-8 flex flex-col items-center justify-center gap-3 cursor-pointer group"
+            >
+              <div className="pv-btn-3d w-12 h-12 rounded-full flex items-center justify-center text-[var(--ink-dim)] group-hover:text-[#4DFFC7] transition-colors">
+                <RiAddLine size={22} />
+              </div>
+              <div className="text-center">
+                <span className="block text-sm font-bold text-[var(--ink)]">Add New Device</span>
+                <span className="block text-[10px] text-[var(--ink-faint)] font-data mt-1">
+                  Connect a new phone via wireless ADB
+                </span>
+              </div>
+            </button>
+          </div>
+
+          <ConnectionGuidePanel />
         </div>
       </div>
     )
   }
 
+  // ---------- MANUAL CONNECT VIEW ----------
+  if (status !== 'connected' && uiMode === 'manual') {
+    return (
+      <div className="pv-root flex-1 min-h-screen overflow-y-auto p-6 md:p-10 pb-24">
+        <DeckStyles />
+        <div className="w-full max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
+          <div className="w-full lg:w-[380px] flex flex-col gap-6 shrink-0">
+            <div className="pv-panel p-6 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="pv-icon-badge w-11 h-11 flex items-center justify-center">
+                  <FaAndroid className="text-[#4DFFC7] text-lg" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-[var(--ink)]">Device Uplink</h2>
+                  <p className="text-[10px] text-[var(--ink-faint)] font-data">TCP/IP configuration</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setUiMode('history')}
+                className="pv-btn-3d flex items-center gap-1.5 text-[10px] font-bold tracking-wide text-[var(--ink-dim)] hover:text-[#4DFFC7] px-3 py-2 transition-colors shrink-0 cursor-pointer"
+              >
+                <RiArrowLeftLine size={12} /> Archive
+              </button>
+            </div>
+
+            <div className="pv-panel p-7 flex flex-col gap-6">
+              {errorMsg && (
+                <div className="p-4 bg-[var(--danger)]/10 border border-[var(--danger)]/30 text-[var(--danger)] text-xs rounded-xl font-data leading-relaxed">
+                  {errorMsg}
+                </div>
+              )}
+
+              <div>
+                <label className="pv-eyebrow mb-3 block">Target IP address</label>
+                <div className="pv-field-shell flex items-center px-5 py-4">
+                  <RiWifiLine className="text-[#4DFFC7] mr-3" size={18} />
+                  <input
+                    type="text"
+                    value={ip}
+                    onChange={(e) => setIp(e.target.value)}
+                    placeholder="192.168.1.xxx"
+                    className="bg-transparent border-none outline-none text-base text-[var(--ink)] w-full font-data placeholder:text-[var(--ink-faint)]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="pv-eyebrow mb-3 block">Target port</label>
+                <div className="pv-field-shell flex items-center px-5 py-4">
+                  <RiLinkM className="text-[#4DFFC7] mr-3" size={18} />
+                  <input
+                    type="text"
+                    value={port}
+                    onChange={(e) => setPort(e.target.value)}
+                    placeholder="5555"
+                    className="bg-transparent border-none outline-none text-base text-[var(--ink)] w-full font-data placeholder:text-[var(--ink-faint)]"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleManualConnect}
+                disabled={status === 'connecting'}
+                className="pv-btn-primary w-full mt-2 py-4 text-[#0B0C10] font-bold tracking-wide text-sm cursor-pointer"
+              >
+                {status === 'connecting' ? 'Connecting…' : 'Establish connection'}
+              </button>
+            </div>
+          </div>
+
+          <ConnectionGuidePanel />
+        </div>
+      </div>
+    )
+  }
+
+  // ---------- CONNECTED / DASHBOARD VIEW ----------
   return (
-    <div className="flex-1 flex flex-col lg:flex-row items-center justify-center gap-10 p-10 animate-in fade-in duration-500 bg-[#0a0a0a] min-h-screen overflow-y-auto">
-      <div className="w-1/4 flex flex-col">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/30">
-            <RiSmartphoneLine className="text-purple-400" size={24} />
-          </div>
-          <div>
-            <h2 className="text-lg font-black text-white tracking-widest uppercase">
-              {telemetry.model}
-            </h2>
-            <p className="text-[10px] text-zinc-500 font-mono tracking-widest uppercase">
-              {telemetry.os}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex justify-between text-[10px] font-mono text-cyan-500 border-b border-white/5 pb-4 mb-4">
-          <span>UPTIME: LIVE</span>
-          <span className="text-orange-500">TEMP: {telemetry.battery.temp}°C</span>
-        </div>
-
-        <h3 className="text-fuchsia-500 font-bold tracking-widest text-sm text-center my-6 drop-shadow-[0_0_10px_rgba(217,70,239,0.5)]">
-          DEVICE TELEMETRY
-        </h3>
-
-        <div className="flex flex-col gap-4">
-          <div className="bg-[#111] border border-white/5 rounded-2xl p-5 hover:border-purple-500/30 transition-all">
-            <div className="flex justify-between items-center mb-3">
-              <span className="text-[10px] font-bold text-zinc-500 tracking-widest">NETWORK</span>
-              <RiSignalWifi3Line className="text-purple-500" />
-            </div>
-            <h4 className="text-2xl font-black text-white">ACTIVE</h4>
-            <span className="text-[10px] font-mono text-zinc-500">TCP/IP BRIDGE</span>
-          </div>
-
-          <div className="bg-[#111] border border-white/5 rounded-2xl p-5 hover:border-purple-500/30 transition-all">
-            <div className="flex justify-between items-center mb-3">
-              <span className="text-[10px] font-bold text-zinc-500 tracking-widest">BATTERY</span>
-              <RiBattery2ChargeLine className="text-green-500" />
-            </div>
-            <div className="flex justify-between items-end mb-2">
-              <h4 className="text-3xl font-black text-white">{telemetry.battery.level}%</h4>
-              <span className="text-[10px] font-mono text-green-500">
-                {telemetry.battery.isCharging ? 'CharGING' : 'DISCharGING'}
-              </span>
-            </div>
-            <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
-              <div
-                className="bg-green-500 h-1.5 shadow-[0_0_10px_rgba(34,197,94,0.8)]"
-                style={{ width: `${telemetry.battery.level}%` }}
-              ></div>
-            </div>
-          </div>
-
-          <div className="bg-[#111] border border-white/5 rounded-2xl p-5 hover:border-purple-500/30 transition-all">
-            <div className="flex justify-between items-center mb-3">
-              <span className="text-[10px] font-bold text-zinc-500 tracking-widest">STORAGE</span>
-              <RiDatabase2Line className="text-orange-500" />
-            </div>
-            <div className="flex justify-between items-end mb-2">
-              <h4 className="text-3xl font-black text-white">{telemetry.storage.used}</h4>
-              <span className="text-[10px] font-mono text-zinc-500">{telemetry.storage.total}</span>
-            </div>
-            <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
-              <div
-                className="bg-orange-500 h-1.5 shadow-[0_0_10px_rgba(249,115,22,0.8)]"
-                style={{ width: `${telemetry.storage.percent}%` }}
-              ></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="w-1/3 flex justify-center relative">
-        <div className="w-full max-w-[320px] h-162.5 bg-black rounded-[3rem] border-12 border-[#1a1a1a] shadow-[0_0_50px_rgba(168,85,247,0.1)] relative overflow-hidden flex flex-col">
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-28 h-7 bg-black rounded-full z-20 flex items-center justify-end px-3 gap-2 shadow-md">
-            <div className="w-2 h-2 rounded-full bg-purple-500/50"></div>
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-          </div>
-          <img ref={screenRef} alt="" className="w-full h-full object-cover" />
-          <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_20px_rgba(0,0,0,0.8)]"></div>
-        </div>
-      </div>
-
-      <div className="w-1/4 flex flex-col h-162.5 relative">
-        <div className="bg-[#111] border border-white/5 rounded-2xl p-6 flex flex-col h-full shadow-lg">
-          <div className="flex items-center gap-3 mb-8 pb-4 border-b border-white/5">
-            <div className="p-2 bg-purple-500/10 rounded-lg">
-              <RiTerminalBoxLine className="text-purple-400" size={20} />
+    <div className="pv-root flex-1 min-h-screen overflow-y-auto p-6 md:p-10 pb-24">
+      <DeckStyles />
+      <div className="w-full max-w-7xl mx-auto">
+        <div className="pv-panel p-6 flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <div className="pv-icon-badge w-12 h-12 flex items-center justify-center">
+              <RiSmartphoneLine className="text-[#4DFFC7]" size={22} />
             </div>
             <div>
-              <h3 className="text-xs font-bold text-white tracking-widest uppercase">
-                SYSTEM CONTROLS
-              </h3>
-              <span className="text-[10px] text-purple-400 font-mono flex items-center gap-1">
-                NEURAL UPLINK SECURED
-              </span>
+              <h2 className="text-base font-bold text-[var(--ink)]">{telemetry.model}</h2>
+              <p className="text-[10px] text-[var(--ink-faint)] font-data tracking-wide">{telemetry.os}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="pv-badge pv-badge-live flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--amber)] pv-status-dot-live" /> Connected
+            </span>
+            <span className="text-[10px] font-data text-[var(--amber)]">{telemetry.battery.temp}°C</span>
+          </div>
+        </div>
+
+        <div className="flex flex-col lg:flex-row gap-8">
+          <div className="w-full lg:w-72 flex flex-col gap-4 shrink-0">
+            <h3 className="pv-eyebrow mb-1">Device telemetry</h3>
+
+            <div className="pv-stat-card p-5">
+              <div className="flex justify-between items-center mb-3">
+                <span className="pv-eyebrow">Network</span>
+                <RiSignalWifi3Line className="text-[#4DFFC7]" size={16} />
+              </div>
+              <h4 className="text-2xl font-bold text-[var(--ink)]">Active</h4>
+              <span className="text-[10px] font-data text-[var(--ink-faint)]">TCP/IP bridge</span>
+            </div>
+
+            <div className="pv-stat-card p-5">
+              <div className="flex justify-between items-center mb-3">
+                <span className="pv-eyebrow">Battery</span>
+                <RiBattery2ChargeLine className="text-[var(--amber)]" size={16} />
+              </div>
+              <div className="flex justify-between items-end mb-2">
+                <h4 className="text-3xl font-bold text-[var(--ink)]">{telemetry.battery.level}%</h4>
+                <span className="text-[10px] font-data text-[var(--amber)]">
+                  {telemetry.battery.isCharging ? 'Charging' : 'Discharging'}
+                </span>
+              </div>
+              <div className="pv-meter-track w-full h-1.5">
+                <div
+                  className="h-1.5 rounded-full"
+                  style={{
+                    width: `${telemetry.battery.level}%`,
+                    background: 'linear-gradient(90deg, #FFC777, #FFB454)',
+                    boxShadow: '0 0 10px rgba(255,180,84,0.6)'
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="pv-stat-card p-5">
+              <div className="flex justify-between items-center mb-3">
+                <span className="pv-eyebrow">Storage</span>
+                <RiDatabase2Line className="text-[#4DFFC7]" size={16} />
+              </div>
+              <div className="flex justify-between items-end mb-2">
+                <h4 className="text-3xl font-bold text-[var(--ink)]">{telemetry.storage.used}</h4>
+                <span className="text-[10px] font-data text-[var(--ink-faint)]">{telemetry.storage.total}</span>
+              </div>
+              <div className="pv-meter-track w-full h-1.5">
+                <div
+                  className="h-1.5 rounded-full"
+                  style={{
+                    width: `${telemetry.storage.percent}%`,
+                    background: 'linear-gradient(90deg, #33FFB0, #00E38C)',
+                    boxShadow: '0 0 10px rgba(0,227,140,0.6)'
+                  }}
+                />
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 mb-auto">
-            <button
-              onClick={() => executeQuickCommand('camera')}
-              className="group flex flex-col items-center justify-center gap-3 p-6 bg-black/50 border border-white/5 hover:border-purple-500/50 hover:bg-purple-500/10 rounded-2xl transition-all"
-            >
-              <RiCameraLensLine
-                size={28}
-                className="text-zinc-500 group-hover:text-purple-400 transition-colors"
-              />
-              <span className="text-[10px] font-bold text-white tracking-widest">CAMERA</span>
-            </button>
-            <button
-              onClick={() => executeQuickCommand('lock')}
-              className="group flex flex-col items-center justify-center gap-3 p-6 bg-black/50 border border-white/5 hover:border-purple-500/50 hover:bg-purple-500/10 rounded-2xl transition-all"
-            >
-              <RiLockPasswordLine
-                size={28}
-                className="text-zinc-500 group-hover:text-purple-400 transition-colors"
-              />
-              <span className="text-[10px] font-bold text-white tracking-widest">LOCK</span>
-            </button>
-            <button
-              onClick={() => executeQuickCommand('wake')}
-              className="group flex flex-col items-center justify-center gap-3 p-6 bg-black/50 border border-white/5 hover:border-purple-500/50 hover:bg-purple-500/10 rounded-2xl transition-all"
-            >
-              <RiSunLine
-                size={28}
-                className="text-zinc-500 group-hover:text-purple-400 transition-colors"
-              />
-              <span className="text-[10px] font-bold text-white tracking-widest">WAKE</span>
-            </button>
-            <button
-              onClick={() => executeQuickCommand('home')}
-              className="group flex flex-col items-center justify-center gap-3 p-6 bg-black/50 border border-white/5 hover:border-purple-500/50 hover:bg-purple-500/10 rounded-2xl transition-all"
-            >
-              <RiHome5Line
-                size={28}
-                className="text-zinc-500 group-hover:text-purple-400 transition-colors"
-              />
-              <span className="text-[10px] font-bold text-white tracking-widest">HOME</span>
-            </button>
+          <div className="flex-1 flex justify-center">
+            <div className="pv-phone-frame w-full max-w-[320px] h-162.5 relative overflow-hidden flex flex-col">
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-28 h-7 bg-[var(--panel-raised)] rounded-full z-20 flex items-center justify-end px-3 gap-2">
+                <div className="w-2 h-2 rounded-full bg-[#4DFFC7]/50" />
+                <div className="w-2 h-2 rounded-full bg-[var(--amber)] animate-pulse" />
+              </div>
+              <img ref={screenRef} alt="" className="w-full h-full object-cover" />
+            </div>
           </div>
 
-          <div className="mb-6 p-4 bg-purple-500/5 border border-purple-500/20 rounded-xl">
-            <p className="text-[10px] text-purple-400 font-mono leading-relaxed text-center">
-              jarvis 2.O is listening via the primary neural audio interface. Voice commands for app
-              execution are online.
-            </p>
-          </div>
+          <div className="w-full lg:w-80 shrink-0">
+            <div className="pv-panel p-6 flex flex-col h-full">
+              <div className="flex items-center gap-3 mb-8 pb-4 border-b border-[var(--line-soft)]">
+                <div className="pv-icon-badge w-10 h-10 flex items-center justify-center">
+                  <RiTerminalBoxLine className="text-[#4DFFC7]" size={18} />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-[var(--ink)] tracking-wide">System controls</h3>
+                  <span className="text-[10px] text-[var(--amber)] font-data">Connection secured</span>
+                </div>
+              </div>
 
-          <button
-            onClick={handleDisconnect}
-            className="w-full py-4 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white font-bold rounded-xl tracking-widest transition-all duration-300 border border-red-500/30 flex items-center justify-center gap-3"
-          >
-            <RiShutDownLine size={20} /> SEVER CONNECTION
-          </button>
+              <div className="grid grid-cols-2 gap-4 mb-auto">
+                <button
+                  onClick={() => executeQuickCommand('camera')}
+                  className="pv-quick-btn group flex flex-col items-center justify-center gap-3 p-6 cursor-pointer"
+                >
+                  <RiCameraLensLine size={26} className="text-[var(--ink-faint)] group-hover:text-[#4DFFC7] transition-colors" />
+                  <span className="text-[10px] font-bold text-[var(--ink)] tracking-wide">Camera</span>
+                </button>
+                <button
+                  onClick={() => executeQuickCommand('lock')}
+                  className="pv-quick-btn group flex flex-col items-center justify-center gap-3 p-6 cursor-pointer"
+                >
+                  <RiLockPasswordLine size={26} className="text-[var(--ink-faint)] group-hover:text-[#4DFFC7] transition-colors" />
+                  <span className="text-[10px] font-bold text-[var(--ink)] tracking-wide">Lock</span>
+                </button>
+                <button
+                  onClick={() => executeQuickCommand('wake')}
+                  className="pv-quick-btn group flex flex-col items-center justify-center gap-3 p-6 cursor-pointer"
+                >
+                  <RiSunLine size={26} className="text-[var(--ink-faint)] group-hover:text-[#4DFFC7] transition-colors" />
+                  <span className="text-[10px] font-bold text-[var(--ink)] tracking-wide">Wake</span>
+                </button>
+                <button
+                  onClick={() => executeQuickCommand('home')}
+                  className="pv-quick-btn group flex flex-col items-center justify-center gap-3 p-6 cursor-pointer"
+                >
+                  <RiHome5Line size={26} className="text-[var(--ink-faint)] group-hover:text-[#4DFFC7] transition-colors" />
+                  <span className="text-[10px] font-bold text-[var(--ink)] tracking-wide">Home</span>
+                </button>
+              </div>
+
+              <div className="pv-well mb-6 p-4 mt-6">
+                <p className="text-[10px] text-[var(--ink-dim)] leading-relaxed text-center">
+                  jarvis 2.O is listening via the primary audio interface. Voice commands for app
+                  execution are online.
+                </p>
+              </div>
+
+              <button
+                onClick={handleDisconnect}
+                className="w-full py-4 bg-[var(--danger)]/10 hover:bg-[var(--danger)] text-[var(--danger)] hover:text-white font-bold rounded-xl tracking-wide transition-all duration-300 border border-[var(--danger)]/30 flex items-center justify-center gap-3 cursor-pointer"
+              >
+                <RiShutDownLine size={18} /> Disconnect
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

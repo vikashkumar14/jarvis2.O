@@ -31,6 +31,25 @@ loadLanguages([
 
 let peelerWindow: BrowserWindow | null = null
 
+async function getScreenCaptureSource(display: any) {
+  try {
+    const scaleFactor = display?.scaleFactor || 1
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: {
+        width: Math.max(1, Math.round((display?.size?.width || 1920) * scaleFactor)),
+        height: Math.max(1, Math.round((display?.size?.height || 1080) * scaleFactor))
+      }
+    })
+
+    if (!sources?.length) return null
+
+    return sources.find((source: any) => source.display_id === `${display?.id}`) || sources[0]
+  } catch {
+    return null
+  }
+}
+
 async function executeClipboardyWrite(text: string) {
   const clipWrite = clipboardy.write || (clipboardy as any).default?.write
   if (clipWrite) {
@@ -179,15 +198,20 @@ export default function registerScreenPeeler() {
 
       await new Promise((resolve) => setTimeout(resolve, 150))
 
-      const sources = await desktopCapturer.getSources({
-        types: ['screen'],
-        thumbnailSize: {
-          width: primaryDisplay.size.width * scaleFactor,
-          height: primaryDisplay.size.height * scaleFactor
-        }
+      const source = await getScreenCaptureSource({
+        ...primaryDisplay,
+        scaleFactor,
+        size: primaryDisplay.size
       })
 
-      const croppedImage = sources[0].thumbnail.crop({
+      if (!source?.thumbnail) {
+        event.sender.send('peeler-capture-error', {
+          message: 'Screen capture is unavailable right now. Please allow screen sharing permissions and try again.'
+        })
+        return
+      }
+
+      const croppedImage = source.thumbnail.crop({
         x: Math.round(coordinates.x * scaleFactor),
         y: Math.round(coordinates.y * scaleFactor),
         width: Math.round(coordinates.width * scaleFactor),

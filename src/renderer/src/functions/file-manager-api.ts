@@ -39,6 +39,13 @@ export const openFile = async (filePath: string) => {
 export const readDirectory = async (dirPath: string) => {
   try {
     const result = await window.electron.ipcRenderer.invoke('read-directory', dirPath)
+    if (typeof result === 'string') {
+      try {
+        return JSON.parse(result)
+      } catch {
+        return result
+      }
+    }
     return result
   } catch (err) {
     return `System Error: ${err}`

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, type ReactElement } from 'react'
 import {
   RiAppsLine,
   RiTerminalBoxLine,
@@ -9,8 +9,9 @@ import {
   RiGamepadLine
 } from 'react-icons/ri'
 import { getAllApps, AppItem } from '@renderer/services/system-info'
+import { openApp } from '@renderer/functions/apps-manager-api'
 
-const SmartIcon = ({ name }: { name: string }) => {
+const SmartIcon = ({ name }: { name: string }): ReactElement => {
   if (!name) return <div className="w-10 h-10 bg-zinc-800 rounded-lg border border-white/5" />
 
   const lower = name.toLowerCase()
@@ -49,24 +50,34 @@ const SmartIcon = ({ name }: { name: string }) => {
   )
 }
 
-const AppCard = ({ app }: { app: AppItem }) => (
-  <div
-    onClick={() => window.electron.ipcRenderer.invoke('open-app', app.name)}
-    className="bg-zinc-950/40 backdrop-blur-xl border border-white/5 rounded-xl p-4 flex items-center gap-4 hover:bg-white/10 hover:border-emerald-500/30 transition-all cursor-pointer group active:scale-95"
-  >
-    <SmartIcon name={app.name} />
-    <div className="flex-1 overflow-hidden">
-      <div className="text-xs font-bold text-zinc-200 truncate group-hover:text-emerald-400 transition-colors">
-        {app.name}
-      </div>
-      <div className="text-[8px] text-zinc-600 truncate font-mono mt-1 opacity-70 group-hover:opacity-100">
-        INSTALLED
+const AppCard = ({ app }: { app: AppItem }): ReactElement => {
+  const handleLaunch = async (): Promise<void> => {
+    const result = await openApp(app.name)
+    if (!result.success && result.error) {
+      console.warn(result.error)
+      alert(`Unable to launch ${app.name}. ${result.error}`)
+    }
+  }
+
+  return (
+    <div
+      onClick={handleLaunch}
+      className="bg-zinc-950/40 backdrop-blur-xl border border-white/5 rounded-xl p-4 flex items-center gap-4 hover:bg-white/10 hover:border-emerald-500/30 transition-all cursor-pointer group active:scale-95"
+    >
+      <SmartIcon name={app.name} />
+      <div className="flex-1 overflow-hidden">
+        <div className="text-xs font-bold text-zinc-200 truncate group-hover:text-emerald-400 transition-colors">
+          {app.name}
+        </div>
+        <div className="text-[8px] text-zinc-600 truncate font-mono mt-1 opacity-70 group-hover:opacity-100">
+          INSTALLED
+        </div>
       </div>
     </div>
-  </div>
-)
+  )
+}
 
-const AppsView = () => {
+const AppsView = (): ReactElement => {
   const [allApps, setAllApps] = useState<AppItem[]>([])
   const [visibleApps, setVisibleApps] = useState<AppItem[]>([])
   const [page, setPage] = useState(1)
@@ -103,7 +114,7 @@ const AppsView = () => {
   useEffect(() => {
     if (page > 1) {
       const nextBatch = allApps.slice(0, page * 12 + 6)
-      setVisibleApps(nextBatch)
+      requestAnimationFrame(() => setVisibleApps(nextBatch))
     }
   }, [page, allApps])
 
